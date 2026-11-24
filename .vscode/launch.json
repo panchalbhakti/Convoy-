@@ -1,0 +1,34 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Backend: Server (Debug)",
+      "cwd": "${workspaceFolder}/server",
+      "program": "${workspaceFolder}/server/src/index.js",
+      "restart": true,
+      "console": "integratedTerminal",
+      "envFile": "${workspaceFolder}/server/.env"
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Frontend: Client (Vite)",
+      "cwd": "${workspaceFolder}/client",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "console": "integratedTerminal"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Stack (Server + Client)",
+      "configurations": [
+        "Backend: Server (Debug)",
+        "Frontend: Client (Vite)"
+      ],
+      "stopAll": true
+    }
+  ]
+}
