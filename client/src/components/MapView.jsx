@@ -4,8 +4,8 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Car, CarFront, Bike, Truck, Bus, Flag, MapPin } from 'lucide-react';
 
-const TILE_URL = import.meta.env.VITE_TILE_URL || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-const TILE_ATTR = import.meta.env.VITE_TILE_ATTRIBUTION || '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const TILE_URL = import.meta.env.VITE_TILE_URL || 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+const TILE_ATTR = import.meta.env.VITE_TILE_ATTRIBUTION || 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom';
 const ICONS = { car: Car, suv: CarFront, bike: Bike, van: Truck, bus: Bus };
 const svgCache = {};
 const svg = (Icon, size, color = '#fff') => {
