@@ -55,12 +55,37 @@ export default function MapView({ route, vehicles, meId, selectedId, onSelect, c
     if (!(vehiclesOnly && vpts.length)) latest.current.route?.coords && pts.push(...latest.current.route.coords);
     pts.push(...vpts);
     if (!pts.length) return;
-    m.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [40, 40], paddingBottomRight: [40, 40 + latest.current.bottomInset], animate, maxZoom: 16 });
+    m.fitBounds(L.latLngBounds(pts), { paddingTopLeft: [40, 40], paddingBottomRight: [40, 40 + latest.current.bottomInset], animate, maxZoom: 18 });
   };
 
   useEffect(() => {
-    const m = L.map(el.current, { zoomControl: false, attributionControl: true, center: [22.5, 79], zoom: 5, worldCopyJump: true });
-    L.tileLayer(TILE_URL, { attribution: TILE_ATTR, maxZoom: 19, subdomains: 'abc' }).addTo(m);
+    const m = L.map(el.current, {
+      zoomControl: false,
+      attributionControl: true,
+      center: [22.5, 79],
+      zoom: 5,
+      minZoom: 2,
+      maxZoom: 22,
+      zoomSnap: 0.25,
+      zoomDelta: 0.5,
+      wheelPxPerZoomLevel: 100,
+      wheelDebounceTime: 30,
+      zoomAnimation: true,
+      fadeAnimation: true,
+      markerZoomAnimation: true,
+      touchZoom: true,
+      bounceAtZoomLimits: false,
+      worldCopyJump: true,
+    });
+    L.tileLayer(TILE_URL, {
+      attribution: TILE_ATTR,
+      minZoom: 2,
+      maxNativeZoom: 19,
+      maxZoom: 22,
+      keepBuffer: 6,
+      updateWhenZooming: false,
+      updateInterval: 100,
+    }).addTo(m);
     m.attributionControl.setPosition('topright');
     m.attributionControl.setPrefix(false);
     map.current = m;
@@ -123,13 +148,13 @@ export default function MapView({ route, vehicles, meId, selectedId, onSelect, c
     const m = map.current;
     if (!m || !command?.type) return;
     if (command.type === 'fit') fit(true, true);
-    else if (command.type === 'zoomIn') m.zoomIn();
-    else if (command.type === 'zoomOut') m.zoomOut();
+    else if (command.type === 'zoomIn') m.setZoom(Math.min(m.getZoom() + 1, 22), { animate: true });
+    else if (command.type === 'zoomOut') m.setZoom(Math.max(m.getZoom() - 1, 2), { animate: true });
     else {
       const v = latest.current.vehicles.find((x) => x.id === (command.type === 'me' ? meId : command.id));
       if (v?.location) {
         // Aim a little above the vehicle so it isn't hidden behind the bottom sheet on phones
-        const z = Math.max(m.getZoom(), 15);
+        const z = Math.max(m.getZoom(), 17);
         const target = m.unproject(m.project([v.location.lat, v.location.lng], z).add([0, latest.current.bottomInset / 2]), z);
         m.flyTo(target, z, { duration: 0.8 });
       }

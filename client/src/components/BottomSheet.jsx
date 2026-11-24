@@ -36,20 +36,20 @@ export default function BottomSheet({ snap, onSnap, onHeight, peek, children }) 
   return (
     <section
       aria-label="Journey details"
-      className="fixed inset-x-0 bottom-0 z-[1200] flex flex-col rounded-t-[1.6rem] border-t border-ink/[.06] bg-paper shadow-[0_-12px_32px_-12px_rgba(15,27,45,.3)]"
-      style={{ height: h, paddingBottom: 'env(safe-area-inset-bottom)', transition: drag ? 'none' : 'height .22s cubic-bezier(.2,.8,.2,1)' }}
+      className="fixed inset-x-0 bottom-0 z-[1200] flex flex-col rounded-t-[1.75rem] border-t border-ink/[.08] bg-paper shadow-[0_-12px_36px_-10px_rgba(15,27,45,.25)]"
+      style={{ height: h, paddingBottom: 'env(safe-area-inset-bottom)', transition: drag ? 'none' : 'height .24s cubic-bezier(.2,.8,.2,1)' }}
     >
       <div
         role="button" tabIndex={0}
         aria-label={snap === 'peek' ? 'Show vehicle details' : 'Hide vehicle details'}
         aria-expanded={snap !== 'peek'}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={() => setDrag(null)} onKeyDown={key}
-        className="grid h-7 shrink-0 cursor-grab touch-none place-items-center"
+        className="grid h-8 shrink-0 cursor-grab touch-none place-items-center active:cursor-grabbing"
       >
-        <span className="h-1 w-10 rounded-full bg-ink/20" />
+        <span className="h-1.5 w-11 rounded-full bg-ink/20 transition-colors hover:bg-ink/35" />
       </div>
       <div className="shrink-0">{peek}</div>
-      {expanded && <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>}
+      {expanded && <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-0.5">{children}</div>}
     </section>
   );
 }

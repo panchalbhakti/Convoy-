@@ -50,9 +50,9 @@ function StatusChip({ Icon, tone = 'info', live, onClick, children }) {
 function CtrlButton({ Icon, label, onClick, caption = true }) {
   return (
     <button onClick={onClick} aria-label={label} title={label}
-      className="flex h-[46px] w-[46px] flex-col items-center justify-center rounded-2xl border border-ink/[.08] bg-white text-ink shadow-float hover:bg-sand">
+      className="flex h-11 w-11 flex-col items-center justify-center rounded-2xl border border-ink/[.08] bg-white text-ink shadow-float transition-all hover:bg-sand active:scale-95">
       <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
-      {caption && <span className="mt-px text-[9px] font-bold leading-none">{label}</span>}
+      {caption && <span className="mt-0.5 text-[9px] font-bold leading-none">{label}</span>}
     </button>
   );
 }
@@ -163,27 +163,27 @@ export default function Journey() {
 
   return (
     <div className="fixed inset-0 flex flex-col bg-paper">
-      <header className="pt-safe z-[1300] flex shrink-0 items-center gap-3 border-b border-ink/[.07] bg-paper/95 px-3 py-1.5 backdrop-blur">
-        <Link to="/" aria-label="Convoy home" className="shrink-0"><LogoMark size={32} /></Link>
+      <header className="pt-safe z-[1300] flex shrink-0 items-center gap-3 border-b border-ink/[.08] bg-white/95 px-4 py-2 backdrop-blur-md">
+        <Link to="/" aria-label="Convoy home" className="shrink-0 transition-opacity hover:opacity-80"><LogoMark size={32} /></Link>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-[15px] font-bold leading-tight">{meta.journey.name}</h1>
           <p className="flex items-center gap-1.5 truncate text-xs text-ink-soft">
-            <span className={`h-1.5 w-1.5 rounded-full ${sock.conn === 'online' ? 'bg-teal' : 'bg-amber-500'}`} aria-hidden="true" />
+            <span className={`h-2 w-2 rounded-full transition-colors ${sock.conn === 'online' ? 'bg-teal' : 'bg-amber-500'}`} aria-hidden="true" />
             {sock.conn === 'online' ? `${state.info.liveCount} of ${state.info.vehicleCount} live` : 'Offline · reconnecting'}
           </p>
         </div>
-        <button onClick={() => setDlg('sos')} disabled={me?.flags.sos} className="btn-danger !min-h-[44px] !px-3.5" aria-label="Send an SOS to the group">
+        <button onClick={() => setDlg('sos')} disabled={me?.flags.sos} className="btn-danger !min-h-[42px] !px-4 shadow-sm" aria-label="Send an SOS to the group">
           <Siren className="h-4 w-4" aria-hidden="true" />{me?.flags.sos ? 'SOS sent' : 'SOS'}
         </button>
       </header>
 
       <div className="flex min-h-0 flex-1">
-        {isWide && <aside aria-label="Journey details" className="w-[372px] shrink-0 overflow-y-auto border-r border-ink/[.07] bg-paper lg:w-[400px]">{panel}</aside>}
+        {isWide && <aside aria-label="Journey details" className="w-[380px] shrink-0 overflow-y-auto border-r border-ink/[.08] bg-paper lg:w-[420px]">{panel}</aside>}
 
         <div className="relative min-w-0 flex-1">
           <MapView route={sock.route} vehicles={state.vehicles} meId={meId} selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setTab('vehicles'); }} command={cmd} bottomInset={bottomInset} />
 
-          <div className="pointer-events-none absolute inset-x-2 top-7 z-[1100] max-w-md space-y-2">
+          <div className="pointer-events-none absolute inset-x-3.5 top-3.5 z-[1100] max-w-md space-y-2 sm:inset-x-4 sm:top-4">
             <AlertStack state={state} meId={meId} isLeader={isLeader} now={now} onShow={selectVehicle}
               onCancelSos={(id) => sock.emit('sos:cancel', { vehicleId: id })} onMore={() => { setTab('trip'); if (!isWide) setSheet('half'); }} />
             <div className="flex flex-wrap gap-1.5">
@@ -198,22 +198,22 @@ export default function Journey() {
             </div>
           </div>
 
-          {notice && <p role="status" className="pointer-events-none absolute left-3 z-[1100] max-w-[calc(100%-5.5rem)] rounded-2xl bg-ink px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-float sm:max-w-sm" style={{ bottom: bottomInset + 72 }}>{notice}</p>}
+          {notice && <p role="status" className="pointer-events-none absolute left-3.5 z-[1100] max-w-[calc(100%-6rem)] rounded-2xl bg-ink/95 px-4 py-3 text-[13px] font-semibold text-white shadow-float backdrop-blur sm:left-4 sm:max-w-sm" style={{ bottom: bottomInset + 72 }}>{notice}</p>}
 
           {!sheetFull && (
             <>
               {!blocked && (
                 <button onClick={onShareClick} disabled={share.status === 'starting'} aria-pressed={sharing}
-                  className={`absolute left-3 z-[1100] inline-flex min-h-[48px] items-center gap-2 rounded-full px-5 text-sm font-bold shadow-float transition-colors ${sharing ? 'border border-teal/40 bg-white text-teal-dark' : 'bg-teal text-white hover:bg-teal-dark'}`}
-                  style={{ bottom: bottomInset + 12 }}>
-                  {sharing ? <><span className="dot-live h-2 w-2 rounded-full bg-teal text-teal" aria-hidden="true" />{share.status === 'starting' ? 'Starting…' : 'Sharing'}{share.status === 'sharing' && share.lastFix?.accuracy ? <span className="text-xs font-medium text-ink-soft">±{Math.round(share.lastFix.accuracy)} m</span> : null}<span className="ml-0.5 inline-flex items-center gap-1 rounded-full bg-ink/5 px-2 py-0.5 text-xs"><Square className="h-3 w-3" aria-hidden="true" />Stop</span></>
+                  className={`absolute left-3.5 z-[1100] inline-flex min-h-[48px] items-center gap-2.5 rounded-full px-5 text-sm font-bold shadow-float transition-all active:scale-95 sm:left-4 ${sharing ? 'border border-teal/40 bg-white text-teal-dark' : 'bg-teal text-white hover:bg-teal-dark'}`}
+                  style={{ bottom: bottomInset + 14 }}>
+                  {sharing ? <><span className="dot-live h-2.5 w-2.5 rounded-full bg-teal text-teal" aria-hidden="true" />{share.status === 'starting' ? 'Starting…' : 'Sharing'}{share.status === 'sharing' && share.lastFix?.accuracy ? <span className="text-xs font-medium text-ink-soft">±{Math.round(share.lastFix.accuracy)} m</span> : null}<span className="ml-0.5 inline-flex items-center gap-1 rounded-full bg-ink/5 px-2 py-0.5 text-xs font-semibold"><Square className="h-3 w-3" aria-hidden="true" />Stop</span></>
                     : <><Radio className="h-4 w-4" aria-hidden="true" />Share location</>}
                 </button>
               )}
-              <div className="absolute right-3 z-[1100] flex flex-col items-end gap-2" style={{ bottom: bottomInset + 12 }}>
+              <div className="absolute right-3.5 z-[1100] flex flex-col items-end gap-2.5 sm:right-4" style={{ bottom: bottomInset + 14 }}>
                 <div className="flex flex-col overflow-hidden rounded-2xl border border-ink/[.08] bg-white shadow-float">
-                  <button aria-label="Zoom in" className="grid h-[42px] w-[46px] place-items-center hover:bg-sand" onClick={() => send('zoomIn')}><Plus className="h-[18px] w-[18px]" /></button>
-                  <button aria-label="Zoom out" className="grid h-[42px] w-[46px] place-items-center border-t border-ink/[.08] hover:bg-sand" onClick={() => send('zoomOut')}><Minus className="h-[18px] w-[18px]" /></button>
+                  <button aria-label="Zoom in" className="grid h-11 w-11 place-items-center transition-colors hover:bg-sand active:scale-95" onClick={() => send('zoomIn')}><Plus className="h-[18px] w-[18px]" /></button>
+                  <button aria-label="Zoom out" className="grid h-11 w-11 place-items-center border-t border-ink/[.08] transition-colors hover:bg-sand active:scale-95" onClick={() => send('zoomOut')}><Minus className="h-[18px] w-[18px]" /></button>
                 </div>
                 <CtrlButton Icon={LocateFixed} label="Me" onClick={showMe} />
                 <CtrlButton Icon={Maximize2} label="All" onClick={() => send('fit')} />
