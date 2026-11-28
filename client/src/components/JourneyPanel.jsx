@@ -1,4 +1,4 @@
-import { ArrowRight, Siren, AlertTriangle, Route as RouteIcon, PauseCircle, Info, LogOut, CheckCircle2 } from 'lucide-react';
+import { Volume2, ArrowRight, Siren, AlertTriangle, Route as RouteIcon, PauseCircle, Info, LogOut, CheckCircle2 } from 'lucide-react';
 import { formatClock, formatDistance, formatDuration } from '../lib/format.js';
 
 const ALERT_ICON = { sos: Siren, separation: AlertTriangle, deviation: RouteIcon, stopped: PauseCircle, info: CheckCircle2 };
@@ -12,7 +12,7 @@ function Stat({ label, value }) {
   );
 }
 
-export default function JourneyPanel({ meta, state, alerts, now, isLeader, onLeave }) {
+export default function JourneyPanel({ meta, state, alerts, now, isLeader, onLeave, onTestAlarm }) {
   const j = meta.journey;
   const info = state.info;
   const pct = info.totalM && info.travelledM != null ? Math.min(100, Math.round((info.travelledM / info.totalM) * 100)) : null;
@@ -62,6 +62,7 @@ export default function JourneyPanel({ meta, state, alerts, now, isLeader, onLea
         )}
       </section>
 
+      <button className="btn-secondary w-full" onClick={onTestAlarm}><Volume2 className="h-4 w-4" aria-hidden="true" />Test SOS alarm sound (3 s)</button>
       {!isLeader && <button className="btn-secondary w-full" onClick={onLeave}><LogOut className="h-4 w-4" aria-hidden="true" />Leave journey</button>}
       <p className="px-1 text-xs text-ink-soft">Keep Convoy open while travelling; phones may pause location when the screen locks. Never use your phone while driving.</p>
     </div>

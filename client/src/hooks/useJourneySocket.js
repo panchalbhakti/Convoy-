@@ -8,7 +8,7 @@ import { setClockOffset } from './useNow.js';
  * Live connection to the journey room.
  * conn: 'connecting' | 'online' | 'offline'.  fatal: null | 'unauthorized' | 'ended' | 'removed'
  */
-export function useJourneySocket(journeyId) {
+export function useJourneySocket(journeyId, { onAlert } = {}) {
   const [conn, setConn] = useState('connecting');
   const [fatal, setFatal] = useState(null);
   const [ready, setReady] = useState(false);
@@ -17,6 +17,8 @@ export function useJourneySocket(journeyId) {
   const [alerts, setAlerts] = useState([]);
   const socketRef = useRef(null);
   const routeVersion = useRef(0);
+  const onAlertRef = useRef(onAlert);
+  onAlertRef.current = onAlert;
 
   useEffect(() => {
     const session = loadSession(journeyId);
@@ -54,7 +56,10 @@ export function useJourneySocket(journeyId) {
       }
     });
     socket.on('route', (r) => setRoute(r));
-    socket.on('alert', (a) => setAlerts((prev) => [...prev.filter((x) => x.id !== a.id), a].slice(-40)));
+    socket.on('alert', (a) => {
+      setAlerts((prev) => [...prev.filter((x) => x.id !== a.id), a].slice(-40));
+      onAlertRef.current?.(a); // live alerts only (the initial history arrives via 'init')
+    });
     socket.on('journey:ended', () => setFatal('ended'));
     socket.on('removed', () => setFatal('removed'));
 

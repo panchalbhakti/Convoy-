@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { startKeepAlive, stopKeepAlive } from '../lib/keepAlive.js';
+import { startKeepAlive, stopKeepAlive, resumeKeepAlive } from '../lib/keepAlive.js';
+import { GpsFilter } from '../lib/gpsFilter.js';
 
 const FLAG = (id) => `convoy:sharing:${id}`;
 
@@ -31,6 +32,7 @@ export function useLocationSharing({ emit, journeyId, online }) {
   const wanted = useRef(false); // the person wants sharing on
   const lastSend = useRef(0);
   const lastFixAt = useRef(0);
+  const filter = useRef(new GpsFilter());
 
   const requestWake = useCallback(async () => {
     try {
@@ -44,17 +46,21 @@ export function useLocationSharing({ emit, journeyId, online }) {
   const onFix = useCallback((pos, force = false) => {
     const now = Date.now();
     lastFixAt.current = now;
+    const c = pos.coords;
+    // Smooth the fix and drop wild jumps; `fix.accuracy` is the filtered estimate
+    const fix = filter.current.process({ lat: c.latitude, lng: c.longitude, accuracy: c.accuracy, speed: c.speed, ts: now });
     setStatus('sharing');
     setGpsIssue(null);
-    setLastFix({ at: now, accuracy: pos.coords.accuracy });
+    if (!fix) return; // an outlier: keep the last good position instead
+    setLastFix({ at: now, accuracy: fix.accuracy, raw: c.accuracy });
     if (!force && now - lastSend.current < 1500) return;
     lastSend.current = now;
     const delivered = emitRef.current('location:update', {
-      lat: pos.coords.latitude,
-      lng: pos.coords.longitude,
-      accuracy: pos.coords.accuracy,
-      speed: pos.coords.speed,
-      heading: pos.coords.heading,
+      lat: fix.lat,
+      lng: fix.lng,
+      accuracy: fix.accuracy,
+      speed: c.speed,
+      heading: c.heading,
     });
     if (delivered) setLastSentAt(now);
   }, []);
@@ -80,13 +86,14 @@ export function useLocationSharing({ emit, journeyId, online }) {
   const beginWatch = useCallback(() => {
     clearWatch();
     watchId.current = navigator.geolocation.watchPosition((p) => onFix(p), onError, {
-      enableHighAccuracy: true, maximumAge: 2000, timeout: 30_000,
+      enableHighAccuracy: true, maximumAge: 0, timeout: 20_000,
     });
   }, [clearWatch, onFix, onError]);
 
   /** Ask for a brand-new fix right now and restart the watch (used after the app was in the background). */
   const refreshNow = useCallback(() => {
     if (!wanted.current || !('geolocation' in navigator)) return;
+    resumeKeepAlive();
     navigator.geolocation.getCurrentPosition((p) => onFix(p, true), () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 15_000 });
     beginWatch();
     requestWake();
@@ -96,6 +103,7 @@ export function useLocationSharing({ emit, journeyId, online }) {
     wanted.current = false;
     clearWatch();
     stopKeepAlive();
+    filter.current.reset();
     wakeLock.current?.release?.().catch(() => {});
     wakeLock.current = null;
     try { localStorage.removeItem(FLAG(journeyId)); } catch { /* ignore */ }
@@ -108,6 +116,7 @@ export function useLocationSharing({ emit, journeyId, online }) {
     if (!('geolocation' in navigator) || !window.isSecureContext) return;
     wanted.current = true;
     try { localStorage.setItem(FLAG(journeyId), '1'); } catch { /* ignore */ }
+    filter.current.reset();
     startKeepAlive({ title: 'Convoy', onStop: stop }); // must run inside the tap
     setStatus('starting');
     setGpsIssue(null);
@@ -116,23 +125,33 @@ export function useLocationSharing({ emit, journeyId, online }) {
     requestWake();
   }, [beginWatch, journeyId, requestWake, stop]);
 
-  // Coming back to the app, regaining the network or restoring from the back/forward cache
+  // Tell the group when this page goes to the background (so it shows "In background", not "no signal"),
+  // keep the audio loop going, and recover fully when the person comes back.
+  const reportVisibility = useCallback(() => {
+    emitRef.current('app:visibility', { hidden: document.visibilityState === 'hidden' });
+  }, []);
+
   useEffect(() => {
-    const onVisible = () => { if (document.visibilityState === 'visible') refreshNow(); };
-    document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('pageshow', onVisible);
-    window.addEventListener('online', refreshNow);
-    window.addEventListener('focus', onVisible);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('pageshow', onVisible);
-      window.removeEventListener('online', refreshNow);
-      window.removeEventListener('focus', onVisible);
+    const onChange = () => {
+      reportVisibility();
+      if (document.visibilityState === 'visible') refreshNow();
+      else if (wanted.current) resumeKeepAlive();
     };
-  }, [refreshNow]);
+    const onBack = () => { if (document.visibilityState === 'visible') refreshNow(); };
+    document.addEventListener('visibilitychange', onChange);
+    window.addEventListener('pageshow', onBack);
+    window.addEventListener('online', refreshNow);
+    window.addEventListener('focus', onBack);
+    return () => {
+      document.removeEventListener('visibilitychange', onChange);
+      window.removeEventListener('pageshow', onBack);
+      window.removeEventListener('online', refreshNow);
+      window.removeEventListener('focus', onBack);
+    };
+  }, [refreshNow, reportVisibility]);
 
   // Server connection came back: push a fresh position right away
-  useEffect(() => { if (online) refreshNow(); }, [online, refreshNow]);
+  useEffect(() => { if (online) { reportVisibility(); refreshNow(); } }, [online, refreshNow, reportVisibility]);
 
   // A GPS watch that has gone quiet while the app is on screen gets restarted
   useEffect(() => {
@@ -160,5 +179,7 @@ export function useLocationSharing({ emit, journeyId, online }) {
 
   useEffect(() => () => { clearWatch(); stopKeepAlive(); }, [clearWatch]);
 
-  return { status, start, stop, lastFix, lastSentAt, gpsIssue, resumed };
+  const acc = lastFix?.accuracy;
+  const quality = acc == null ? null : acc <= 30 ? 'good' : acc <= 100 ? 'ok' : 'poor';
+  return { status, start, stop, lastFix, lastSentAt, gpsIssue, resumed, quality };
 }

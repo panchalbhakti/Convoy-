@@ -1,26 +1,27 @@
-// Best-effort help for keeping location sharing alive when the person switches apps.
+// Best-effort help for keeping location sharing alive when the person switches tabs or apps.
 //
 // Browsers freeze background tabs, and GPS callbacks stop with them. A tab that is *playing audio*
-// is treated as "in use" by Chrome/Android (and, partly, iOS Safari), so we loop a silent sound while
-// sharing. This also shows a lock-screen / notification control ("Convoy is sharing your location")
-// with a Stop button, so sharing is never invisible.
+// is treated as "in use" (Chrome/Android, desktop Chrome and, partly, iOS Safari), so while sharing we
+// loop a sound at 18 Hz: a real audio signal that browsers detect, but far below what phone speakers or
+// ears can reproduce, so it is inaudible. It also shows a lock-screen / notification control
+// ("Convoy is sharing your location") with a Stop button, so sharing is never invisible.
 // It is a mitigation, not a guarantee: some phones still pause web pages to save battery.
 
 let audio = null;
 let url = null;
 
-function silentWav() {
+function subsonicWav() {
   if (url) return url;
   const rate = 8000;
-  const n = rate; // 1 second
-  const buf = new ArrayBuffer(44 + n);
+  const n = rate; // exactly 1 second = 18 whole cycles, so the loop is seamless
+  const buf = new ArrayBuffer(44 + n * 2);
   const v = new DataView(buf);
   const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
-  w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVEfmt ');
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt ');
   v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-  v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
-  w(36, 'data'); v.setUint32(40, n, true);
-  for (let i = 0; i < n; i++) v.setUint8(44 + i, 128 + (i % 2)); // inaudible: 1/128 of full scale
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, 'data'); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.round(Math.sin((2 * Math.PI * 18 * i) / rate) * 1800), true);
   url = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
   return url;
 }
@@ -29,9 +30,9 @@ function silentWav() {
 export function startKeepAlive({ title = 'Convoy', onStop } = {}) {
   try {
     if (!audio) {
-      audio = new Audio(silentWav());
+      audio = new Audio(subsonicWav());
       audio.loop = true;
-      audio.volume = 0.05;
+      audio.volume = 0.6;
       audio.setAttribute('playsinline', '');
     }
     audio.play().catch(() => {});
@@ -43,6 +44,11 @@ export function startKeepAlive({ title = 'Convoy', onStop } = {}) {
       navigator.mediaSession.setActionHandler('stop', stop);
     }
   } catch { /* unsupported: sharing still works while the app is open */ }
+}
+
+/** Some browsers pause the loop when the tab is hidden or the phone is locked: nudge it back on. */
+export function resumeKeepAlive() {
+  try { if (audio && audio.paused) audio.play().catch(() => {}); } catch { /* ignore */ }
 }
 
 export function stopKeepAlive() {

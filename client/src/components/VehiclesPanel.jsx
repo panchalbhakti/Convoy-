@@ -57,7 +57,7 @@ function VehicleRow({ v, me, now, open, onSelect }) {
           </span>
           <span className="mt-0.5 flex items-center gap-1 text-xs text-ink-soft">
             <st.Icon className={`h-3.5 w-3.5 shrink-0 ${st.text}`} aria-hidden="true" />
-            <span className={`font-semibold ${st.text}`}>{st.short}</span>
+            <span className={`font-semibold ${v.background ? 'text-amber-800' : st.text}`}>{v.background ? 'In background' : st.short}</span>
             <span className="truncate">· {v.location ? formatAgo(ageSec) : 'no location'}</span>
           </span>
         </span>

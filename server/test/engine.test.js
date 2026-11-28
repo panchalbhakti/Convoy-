@@ -243,3 +243,22 @@ test('simulator drives all scenarios through the real engine', () => {
   assert.ok(seen.has('stopped'), 'stopped alert');
   assert.ok(sawDisconnected, 'dropout shows as disconnected');
 });
+
+test('a vehicle whose tab is in the background gets a longer, labelled window; foreground does not', () => {
+  const r = straight();
+  const e = mkEngine(r);
+  e.ingest('A', at(r, 5000), 0);
+  e.ingest('B', at(r, 4000), 0);
+  e.setBackground('B', true);
+  const mid = e.evaluate(60_000).snapshot.vehicles;
+  assert.equal(mid.find((v) => v.id === 'A').live, false, 'foreground vehicle is stale after 30 s');
+  const b = mid.find((v) => v.id === 'B');
+  assert.equal(b.live, true, 'background vehicle still counts at 60 s');
+  assert.equal(b.background, true);
+  const late = e.evaluate(90_000).snapshot.vehicles.find((v) => v.id === 'B');
+  assert.equal(late.live, false, 'but not live forever');
+  assert.equal(late.background, false);
+  e.setBackground('B', false);
+  e.ingest('B', at(r, 4100), 100_000);
+  assert.equal(e.evaluate(101_000).snapshot.vehicles.find((v) => v.id === 'B').background, false);
+});

@@ -6,6 +6,11 @@ import { Car, CarFront, Bike, Truck, Bus, Flag, MapPin } from 'lucide-react';
 
 const TILE_URL = import.meta.env.VITE_TILE_URL || 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
 const TILE_ATTR = import.meta.env.VITE_TILE_ATTRIBUTION || 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom';
+// Tiles are real map images only up to a certain zoom; past it the map keeps zooming by enlarging the
+// last real tile instead of stopping or going blank. Raise VITE_TILE_MAX_NATIVE_ZOOM (e.g. 19) if your
+// tile provider has detail there.
+const MAX_NATIVE_ZOOM = Number(import.meta.env.VITE_TILE_MAX_NATIVE_ZOOM || 17);
+const MAX_ZOOM = 24;
 const ICONS = { car: Car, suv: CarFront, bike: Bike, van: Truck, bus: Bus };
 const svgCache = {};
 const svg = (Icon, size, color = '#fff') => {
@@ -17,6 +22,7 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 function markerSuffix(v) {
   if (v.flags.sos) return ' · SOS';
   if (!v.live) return v.status === 'disconnected' ? ' · Disconnected' : ' · No signal';
+  if (v.background) return ' · In background';
   if (v.offRoute) return ' · Off route';
   if (v.status === 'stopped') return ' · Stopped';
   return '';
@@ -43,6 +49,7 @@ export default function MapView({ route, vehicles, meId, selectedId, onSelect, c
   const markers = useRef(new Map());
   const sigs = useRef(new Map());
   const didFit = useRef(false);
+  const accuracyCircle = useRef(null);
   const latest = useRef({});
   latest.current = { route, vehicles, bottomInset, onSelect };
 
@@ -65,7 +72,7 @@ export default function MapView({ route, vehicles, meId, selectedId, onSelect, c
       center: [22.5, 79],
       zoom: 5,
       minZoom: 2,
-      maxZoom: 22,
+      maxZoom: MAX_ZOOM,
       zoomSnap: 0.25,
       zoomDelta: 0.5,
       wheelPxPerZoomLevel: 100,
@@ -80,8 +87,8 @@ export default function MapView({ route, vehicles, meId, selectedId, onSelect, c
     L.tileLayer(TILE_URL, {
       attribution: TILE_ATTR,
       minZoom: 2,
-      maxNativeZoom: 19,
-      maxZoom: 22,
+      maxNativeZoom: MAX_NATIVE_ZOOM,
+      maxZoom: MAX_ZOOM,
       keepBuffer: 6,
       updateWhenZooming: false,
       updateInterval: 100,
@@ -90,12 +97,12 @@ export default function MapView({ route, vehicles, meId, selectedId, onSelect, c
     m.attributionControl.setPrefix(false);
     map.current = m;
     // Far zoomed out, name labels would pile up on a tight convoy: hide them (SOS labels stay).
-    const labels = () => el.current?.classList.toggle('cv-hide-labels', m.getZoom() < 11);
+    const labels = () => { if (!el.current) return; el.current.classList.toggle('cv-hide-labels', m.getZoom() < 11); el.current.dataset.zoom = String(m.getZoom()); };
     m.on('zoomend', labels);
     labels();
     const ro = new ResizeObserver(() => m.invalidateSize());
     ro.observe(el.current);
-    return () => { ro.disconnect(); m.remove(); map.current = null; markers.current.clear(); sigs.current.clear(); };
+    return () => { ro.disconnect(); m.remove(); map.current = null; accuracyCircle.current = null; markers.current.clear(); sigs.current.clear(); };
   }, []);
 
   // Planned route, start and destination
@@ -126,7 +133,7 @@ export default function MapView({ route, vehicles, meId, selectedId, onSelect, c
       if (!v.location) continue;
       seen.add(v.id);
       const pos = [v.location.lat, v.location.lng];
-      const sig = [v.vehicleType, v.color, v.live, v.status, v.rank, v.offRoute, v.flags.sos, v.vehicleName, v.id === meId, v.id === selectedId, v.simulated].join('|');
+      const sig = [v.vehicleType, v.color, v.live, v.status, v.rank, v.offRoute, v.flags.sos, v.vehicleName, v.id === meId, v.id === selectedId, v.simulated, v.background].join('|');
       let mk = markers.current.get(v.id);
       if (!mk) {
         mk = L.marker(pos, { icon: vehicleIcon(v, v.id === meId, v.id === selectedId), zIndexOffset: v.id === meId ? 1000 : v.flags.sos ? 2000 : 0, keyboard: false });
@@ -139,6 +146,14 @@ export default function MapView({ route, vehicles, meId, selectedId, onSelect, c
         if (sigs.current.get(v.id) !== sig) { mk.setIcon(vehicleIcon(v, v.id === meId, v.id === selectedId)); mk.setZIndexOffset(v.id === meId ? 1000 : v.flags.sos ? 2000 : 0); sigs.current.set(v.id, sig); }
       }
     }
+    // Show how precise your own GPS is: a ring of the reported accuracy around your vehicle
+    const myself = vehicles.find((v) => v.id === meId && v.location);
+    const acc = myself?.location?.accuracy;
+    if (myself && myself.live && acc != null && acc >= 12 && acc <= 3000) {
+      const ll = [myself.location.lat, myself.location.lng];
+      if (!accuracyCircle.current) accuracyCircle.current = L.circle(ll, { radius: acc, color: '#1F7A72', weight: 1, fillColor: '#1F7A72', fillOpacity: 0.1, interactive: false }).addTo(m);
+      else accuracyCircle.current.setLatLng(ll).setRadius(acc);
+    } else if (accuracyCircle.current) { accuracyCircle.current.remove(); accuracyCircle.current = null; }
     for (const [id, mk] of markers.current) if (!seen.has(id)) { mk.remove(); markers.current.delete(id); sigs.current.delete(id); }
     if (!didFit.current && seen.size) { didFit.current = true; fit(false); }
   }, [vehicles, meId, selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -148,7 +163,7 @@ export default function MapView({ route, vehicles, meId, selectedId, onSelect, c
     const m = map.current;
     if (!m || !command?.type) return;
     if (command.type === 'fit') fit(true, true);
-    else if (command.type === 'zoomIn') m.setZoom(Math.min(m.getZoom() + 1, 22), { animate: true });
+    else if (command.type === 'zoomIn') m.setZoom(Math.min(m.getZoom() + 1, MAX_ZOOM), { animate: true });
     else if (command.type === 'zoomOut') m.setZoom(Math.max(m.getZoom() - 1, 2), { animate: true });
     else {
       const v = latest.current.vehicles.find((x) => x.id === (command.type === 'me' ? meId : command.id));

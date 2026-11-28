@@ -65,6 +65,7 @@ export function initSocket(httpServer) {
       if (loc) rt.ingest(vehicleId, loc, now);
     });
     socket.on('route:request', () => rt && socket.emit('route', rt.display));
+    socket.on('app:visibility', (p) => rt?.setBackground(vehicleId, !!p?.hidden));
     socket.on('sharing:stop', () => rt?.setSharing(vehicleId, 'off'));
     socket.on('sharing:denied', () => rt?.setSharing(vehicleId, 'denied'));
     socket.on('sos:start', () => rt?.triggerSos(vehicleId));

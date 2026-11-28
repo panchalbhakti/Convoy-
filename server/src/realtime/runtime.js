@@ -206,6 +206,10 @@ class Runtime {
     }
   }
 
+  setBackground(vehicleId, hidden) {
+    this.engine.setBackground(vehicleId, hidden);
+  }
+
   setSharing(vehicleId, state) {
     this.engine.setSharing(vehicleId, state);
     Vehicle.updateOne({ _id: vehicleId }, { sharingStatus: state }).catch(log);

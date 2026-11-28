@@ -17,6 +17,7 @@ import { useLocationSharing } from '../hooks/useLocationSharing.js';
 import { useMediaQuery } from '../hooks/useMediaQuery.js';
 import { useNow } from '../hooks/useNow.js';
 import { formatDistance } from '../lib/format.js';
+import { installAudioUnlock, playSosAlarm } from '../lib/alarm.js';
 
 const ordinal = (n) => `${n}${['th', 'st', 'nd', 'rd'][(n % 100 >> 3) ^ 1 && n % 10 < 4 ? n % 10 : 0]}`;
 const CONSENT_KEY = (id) => `convoy:consent:${id}`;
@@ -78,9 +79,11 @@ export default function Journey() {
   const { journeyId } = useParams();
   const nav = useNavigate();
   const isWide = useMediaQuery('(min-width: 768px)');
-  const sock = useJourneySocket(journeyId);
+  // Every device in the journey sounds a 3-second siren when an SOS arrives
+  const sock = useJourneySocket(journeyId, { onAlert: (a) => { if (a.type === 'sos') playSosAlarm(3000); } });
   const share = useLocationSharing({ emit: sock.emit, journeyId, online: sock.conn === 'online' });
   const now = useNow(1000);
+  useEffect(() => installAudioUnlock(), []); // sound is allowed after the first tap
 
   const [meta, setMeta] = useState(null);
   const [tab, setTab] = useState('vehicles');
@@ -156,7 +159,7 @@ export default function Journey() {
         </div>
       </div>
       {tab === 'vehicles' && <VehiclesPanel state={state} meId={meId} selectedId={selectedId} onSelect={selectVehicle} now={now} />}
-      {tab === 'trip' && <JourneyPanel meta={meta} state={state} alerts={sock.alerts} now={now} isLeader={isLeader} onLeave={() => setDlg('leave')} />}
+      {tab === 'trip' && <JourneyPanel meta={meta} state={state} alerts={sock.alerts} now={now} isLeader={isLeader} onLeave={() => setDlg('leave')} onTestAlarm={() => { if (!playSosAlarm(3000)) setNotice('Sound is blocked by your browser. Tap anywhere on the page and try again, and check your volume.'); }} />}
       {tab === 'leader' && isLeader && <LeaderPanel journeyId={journeyId} meta={meta} state={state} emit={sock.emit} refresh={refresh} />}
     </>
   );
@@ -190,6 +193,7 @@ export default function Journey() {
               {sock.conn !== 'online' && <StatusChip Icon={WifiOff} tone="warn">Offline · reconnecting</StatusChip>}
               {share.status === 'sharing' && share.gpsIssue && <StatusChip Icon={Crosshair} tone="warn">{share.gpsIssue}</StatusChip>}
               {share.status === 'starting' && <StatusChip Icon={Crosshair}>Getting GPS…</StatusChip>}
+              {share.status === 'sharing' && !share.gpsIssue && share.quality === 'poor' && <StatusChip Icon={Crosshair} tone="warn" onClick={() => setNotice('GPS is rough right now (about ±' + Math.round(share.lastFix.accuracy) + ' m). Go outdoors or near a window, turn on Location / GPS in high-accuracy mode, and allow “Precise location” for your browser.')}>Improving accuracy · ±{Math.round(share.lastFix.accuracy)} m</StatusChip>}
               {share.status === 'denied' && <StatusChip Icon={MapPinOff} tone="warn" onClick={() => setNotice('Location is blocked for this site. Allow it in your browser settings, then tap Share location.')}>Location blocked</StatusChip>}
               {share.status === 'insecure' && <StatusChip Icon={MapPinOff} tone="warn" onClick={() => setNotice('Sharing needs a secure connection. Open this site with its https:// address.')}>Needs HTTPS</StatusChip>}
               {share.status === 'unsupported' && <StatusChip Icon={MapPinOff} tone="warn">GPS not supported</StatusChip>}

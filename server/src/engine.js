@@ -2,6 +2,7 @@ import { haversine, snapToRoute } from './geo.js';
 
 export const DEFAULTS = {
   staleMs: 30_000, // a position older than this is NOT live
+  backgroundStaleMs: 75_000, // phones throttle GPS for a tab in the background, so allow a longer (still clearly labelled) window
   accuracyOrderMaxM: 200, // worse GPS accuracy than this is not trusted for ordering / deviation
   devMinM: 150, // minimum off-route distance that counts as a deviation (scaled up by GPS accuracy)
   devSustainMs: 15_000, // must stay off route this long before alerting
@@ -27,6 +28,7 @@ function newRec(meta) {
   return {
     meta,
     connected: false,
+    background: false, // the person switched to another tab/app (reported by their browser)
     sharing: 'off', // off | sharing | denied
     loc: null,
     lastAt: null,
@@ -91,7 +93,19 @@ export class JourneyEngine {
 
   setConnected(id, connected) {
     const rec = this.vehicles.get(id);
-    if (rec) rec.connected = connected;
+    if (!rec) return;
+    rec.connected = connected;
+    if (!connected) rec.background = false;
+  }
+
+  /** The browser tells us when the page is hidden (another tab or app in front). */
+  setBackground(id, hidden) {
+    const rec = this.vehicles.get(id);
+    if (rec) rec.background = !!hidden;
+  }
+
+  _staleMs(rec) {
+    return rec.background ? this.cfg.backgroundStaleMs : this.cfg.staleMs;
   }
 
   setSharing(id, state) {
@@ -116,15 +130,15 @@ export class JourneyEngine {
     let speed = null;
     if (Number.isFinite(loc.speed) && loc.speed >= 0) {
       speed = loc.speed;
-    } else if (prev && gap >= 1500 && gap <= this.cfg.staleMs) {
+    } else if (prev && gap >= 1500 && gap <= this._staleMs(rec)) {
       const d = haversine(prev.lat, prev.lng, loc.lat, loc.lng);
       const noise = Math.max(15, loc.accuracy || 0); // movement smaller than GPS noise is not movement
       speed = d < noise ? 0 : d / (gap / 1000);
     }
     if (speed != null) {
-      rec.speedMps = rec.speedMps == null || gap > this.cfg.staleMs ? speed : 0.5 * rec.speedMps + 0.5 * speed;
+      rec.speedMps = rec.speedMps == null || gap > this._staleMs(rec) ? speed : 0.5 * rec.speedMps + 0.5 * speed;
     }
-    if (gap > this.cfg.staleMs) {
+    if (gap > this._staleMs(rec)) {
       // Signal came back after a gap: restart stop detection so a GPS dropout is never read as "stopped".
       rec.motion = 'unknown';
       rec.stoppedSince = null;
@@ -198,7 +212,7 @@ export class JourneyEngine {
     for (const rec of this.vehicles.values()) {
       const age = rec.lastAt == null ? null : now - rec.lastAt;
       const hasLoc = !!rec.loc;
-      const live = hasLoc && rec.sharing === 'sharing' && age <= cfg.staleMs;
+      const live = hasLoc && rec.sharing === 'sharing' && age <= this._staleMs(rec);
 
       let status;
       let reason = null;
@@ -363,6 +377,7 @@ export class JourneyEngine {
         status: it.status,
         statusReason: it.reason,
         live: it.live,
+        background: it.live && rec.background,
         sharing: rec.sharing,
         connected: rec.connected,
         location: rec.loc,
